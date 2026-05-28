@@ -1,4 +1,4 @@
-﻿"""
+"""
 成都理工大学校园信息助手 - 主程序
 自动监控考试安排、成绩发布、课表变动，推送到个人微信。
 """
@@ -13,7 +13,7 @@ from datetime import datetime
 def _load_env():
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
+        with open(env_path, "r", encoding="utf-8-sig") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -39,7 +39,7 @@ def load_cache() -> dict:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
-    return {"exam_ids": [], "grade_ids": [], "timetable_hash": ""}
+    return {"exam_ids": [], "grade_ids": [], "timetable_hash": "", "first_run": True}
 
 
 def save_cache(cache: dict):
@@ -48,57 +48,57 @@ def save_cache(cache: dict):
 
 
 def format_exam_message(exams: list[dict]) -> str:
-    lines = ["📝 **考试安排更新**"]
+    lines = ["\U0001f4dd **考试安排更新**"]
     for e in exams:
         lines.append("")
-        lines.append("📖 %s" % e.get("course", ""))
+        lines.append("\U0001f4d6 %s" % e.get("course", ""))
         if e.get("status"):
-            lines.append("📋 %s" % e["status"])
+            lines.append("\U0001f4cb %s" % e["status"])
         if e.get("time_str"):
-            lines.append("⏰ %s" % e["time_str"])
+            lines.append("\u23f0 %s" % e["time_str"])
         if e.get("classroom"):
-            lines.append("🏫 %s" % e["classroom"])
+            lines.append("\U0001f3eb %s" % e["classroom"])
         if e.get("teachers"):
-            lines.append("👨‍🏫 %s" % e["teachers"])
+            lines.append("\U0001f468\u200d\U0001f3eb %s" % e["teachers"])
     return "\n".join(lines)
 
 
 def format_grade_message(grades: list[dict]) -> str:
-    lines = ["📊 **新成绩发布**"]
+    lines = ["\U0001f4ca **新成绩发布**"]
     for g in grades:
         lines.append("")
-        line = "📖 %s" % g.get("course", "")
+        line = "\U0001f4d6 %s" % g.get("course", "")
         if g.get("score"):
-            line += " — %s分" % g["score"]
+            line += " \u2014 %s\u5206" % g["score"]
         lines.append(line)
         details = []
         if g.get("credit"):
-            details.append("学分: %s" % g["credit"])
+            details.append("\u5b66\u5206: %s" % g["credit"])
         if g.get("gpa"):
-            details.append("绩点: %s" % g["gpa"])
+            details.append("\u7ee9\u70b9: %s" % g["gpa"])
         if details:
             lines.append("  %s" % " | ".join(details))
     return "\n".join(lines)
 
 
 def format_timetable_message(items: list[dict]) -> str:
-    lines = ["📅 **课表更新**"]
+    lines = ["\U0001f4c5 **课表更新**"]
     for item in items:
         lines.append("")
-        lines.append("📖 %s" % item.get("course", ""))
+        lines.append("\U0001f4d6 %s" % item.get("course", ""))
         if item.get("classroom"):
-            lines.append("🏫 %s" % item["classroom"])
+            lines.append("\U0001f3eb %s" % item["classroom"])
     return "\n".join(lines)
 
 
 def main():
     print("=" * 50)
-    print("🎓 CDUT 校园信息助手 - %s" % datetime.now().strftime("%Y-%m-%d %H:%M"))
+    print("\U0001f393 CDUT 校园信息助手 - %s" % datetime.now().strftime("%Y-%m-%d %H:%M"))
     print("=" * 50)
 
     open_id = os.environ.get("OPEN_ID", "")
     if not open_id:
-        print("❌ 错误: 请配置 OPEN_ID 环境变量或 .env 文件")
+        print("\u274c 错误: 请配置 OPEN_ID 环境变量或 .env 文件")
         sys.exit(1)
 
     pw, browser, context, page = None, None, None, None
@@ -109,7 +109,11 @@ def main():
         scraper.init_session(page, open_id)
 
         cache = load_cache()
+        is_first_run = cache.get("first_run", True)
         has_new_content = False
+
+        if is_first_run:
+            print("\n\u23f3 首次运行，仅缓存当前数据，不发送通知。")
 
         # --- 考试安排 ---
         print("\n--- 检查考试安排 ---")
@@ -121,15 +125,18 @@ def main():
 
             if new_exams:
                 print("发现 %d 条新考试安排！" % len(new_exams))
-                msg = format_exam_message(new_exams)
-                notifier.send_message("📝 考试安排更新", msg)
-                has_new_content = True
+                if not is_first_run:
+                    msg = format_exam_message(new_exams)
+                    notifier.send_message("\U0001f4dd 考试安排更新", msg)
+                    has_new_content = True
+                else:
+                    print("  (首次运行，跳过推送)")
 
             cache["exam_ids"] = [
                 e.get("course", "") + "|" + e.get("time_str", "") for e in current_exams
             ]
         except Exception as e:
-            print("⚠️ 考试安排检查失败: %s" % e)
+            print("\u26a0\ufe0f 考试安排检查失败: %s" % e)
 
         # --- 成绩 ---
         print("\n--- 检查成绩 ---")
@@ -141,15 +148,18 @@ def main():
 
             if new_grades:
                 print("发现 %d 条新成绩！" % len(new_grades))
-                msg = format_grade_message(new_grades)
-                notifier.send_message("📊 新成绩发布", msg)
-                has_new_content = True
+                if not is_first_run:
+                    msg = format_grade_message(new_grades)
+                    notifier.send_message("\U0001f4ca 新成绩发布", msg)
+                    has_new_content = True
+                else:
+                    print("  (首次运行，跳过推送)")
 
             cache["grade_ids"] = [
                 g.get("course", "") + "|" + g.get("score", "") for g in current_grades
             ]
         except Exception as e:
-            print("⚠️ 成绩检查失败: %s" % e)
+            print("\u26a0\ufe0f 成绩检查失败: %s" % e)
 
         # --- 课表 ---
         print("\n--- 检查课表 ---")
@@ -160,21 +170,25 @@ def main():
 
             if timetable_hash != cache.get("timetable_hash", "") and cache.get("timetable_hash"):
                 print("课表有变动！")
-                msg = format_timetable_message(current_timetable)
-                notifier.send_message("📅 课表变动", msg)
-                has_new_content = True
+                if not is_first_run:
+                    msg = format_timetable_message(current_timetable)
+                    notifier.send_message("\U0001f4c5 课表变动", msg)
+                    has_new_content = True
+                else:
+                    print("  (首次运行，跳过推送)")
 
             cache["timetable_hash"] = timetable_hash
         except Exception as e:
-            print("⚠️ 课表检查失败: %s" % e)
+            print("\u26a0\ufe0f 课表检查失败: %s" % e)
 
+        cache["first_run"] = False
         save_cache(cache)
 
         print("\n" + "=" * 50)
         if has_new_content:
-            print("✅ 检查完成，有新内容已推送！")
+            print("\u2705 检查完成，有新内容已推送！")
         else:
-            print("✅ 检查完成，暂无新内容。")
+            print("\u2705 检查完成，暂无新内容。")
         print("=" * 50)
 
     finally:
