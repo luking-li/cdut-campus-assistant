@@ -35,5 +35,6 @@ jobs:
       - name: Run campus assistant
         env:
           OPEN_ID: ${{ secrets.OPEN_ID }}
-          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
         run: python main.py
+
