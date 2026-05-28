@@ -1,0 +1,6 @@
+﻿.env
+cache.json
+__pycache__/
+run.bat
+run.log
+*.pyc

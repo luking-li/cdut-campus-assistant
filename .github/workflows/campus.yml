@@ -1,0 +1,39 @@
+﻿name: CDUT Campus Assistant
+
+on:
+  schedule:
+    - cron: '0,30 23,0,1,2,3,4,5,6 * * 0-4'
+    - cron: '0,30 6,7,8,9,10,11,12,13,14 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  check-campus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      - name: Cache notification state
+        uses: actions/cache@v4
+        with:
+          path: cache.json
+          key: campus-cache-${{ github.run_id }}
+          restore-keys: campus-cache-
+
+      - name: Run campus assistant
+        env:
+          OPEN_ID: ${{ secrets.OPEN_ID }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+        run: python main.py
